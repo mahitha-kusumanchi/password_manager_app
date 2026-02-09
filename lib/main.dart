@@ -188,6 +188,7 @@ class _LoginPageState extends State<LoginPage> {
           context,
           MaterialPageRoute(
             builder: (_) => VaultPage(
+              username: username,
               token: token,
               password: password,
               vaultResponse: vault,
@@ -374,6 +375,7 @@ class _RegisterPasswordPageState extends State<RegisterPasswordPage> {
         context,
         MaterialPageRoute(
           builder: (_) => VaultPage(
+            username: widget.username,
             token: token,
             password: password,
             vaultResponse: vault,
@@ -490,12 +492,14 @@ class AppHeroTitle extends StatelessWidget {
 }
 
 class VaultPage extends StatefulWidget {
+  final String username;
   final String token;
   final String password;
   final Map<String, dynamic> vaultResponse;
 
   const VaultPage({
     super.key,
+    required this.username,
     required this.token,
     required this.password,
     required this.vaultResponse,
@@ -702,7 +706,10 @@ class _VaultPageState extends State<VaultPage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => MfaSettingsPage(token: widget.token),
+                  builder: (_) => MfaSettingsPage(
+                    username: widget.username,
+                    token: widget.token,
+                  ),
                 ),
               );
             },
@@ -820,6 +827,7 @@ class _MfaVerifyPageState extends State<MfaVerifyPage> {
         context,
         MaterialPageRoute(
           builder: (_) => VaultPage(
+            username: widget.username,
             token: token,
             password: widget.password,
             vaultResponse: vault,
@@ -888,9 +896,14 @@ class _MfaVerifyPageState extends State<MfaVerifyPage> {
    ========================= */
 
 class MfaSettingsPage extends StatefulWidget {
+  final String username;
   final String token;
 
-  const MfaSettingsPage({super.key, required this.token});
+  const MfaSettingsPage({
+    super.key,
+    required this.username,
+    required this.token,
+  });
 
   @override
   State<MfaSettingsPage> createState() => _MfaSettingsPageState();
@@ -917,7 +930,10 @@ class _MfaSettingsPageState extends State<MfaSettingsPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => MfaSetupPage(token: widget.token),
+        builder: (_) => MfaSetupPage(
+          username: widget.username,
+          token: widget.token,
+        ),
       ),
     );
   }
@@ -1012,9 +1028,14 @@ class _MfaSettingsPageState extends State<MfaSettingsPage> {
    ========================= */
 
 class MfaSetupPage extends StatefulWidget {
+  final String username;
   final String token;
 
-  const MfaSetupPage({super.key, required this.token});
+  const MfaSetupPage({
+    super.key,
+    required this.username,
+    required this.token,
+  });
 
   @override
   State<MfaSetupPage> createState() => _MfaSetupPageState();
@@ -1069,8 +1090,16 @@ class _MfaSetupPageState extends State<MfaSetupPage> {
     });
 
     try {
-      // We'd need username here - for now, show success
-      // In production, pass username through the flow
+      // Actually verify the code with the server
+      final success = await _authService.verifyMfa(
+        widget.username,
+        _codeController.text,
+      );
+
+      if (!success) {
+        throw Exception('Invalid code. Please try again.');
+      }
+
       if (!mounted) return;
 
       showDialog(
@@ -1095,7 +1124,7 @@ class _MfaSetupPageState extends State<MfaSetupPage> {
         ),
       );
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
     } finally {
       setState(() => _verifying = false);
     }
