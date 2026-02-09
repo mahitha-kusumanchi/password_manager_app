@@ -7,7 +7,7 @@ import 'package:cryptography/cryptography.dart';
 
 class AuthService {
   static const String baseUrl =
-      'https://diaphragmatically-scimitared-oda.ngrok-free.dev';
+      'http://127.0.0.1:8000';
 
   Future<Uint8List> _derive(String password, Uint8List salt) async {
     final argon2 = Argon2BytesGenerator();
