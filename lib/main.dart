@@ -904,11 +904,39 @@ class _VaultPageState extends State<VaultPage> {
   }
 
   void _deleteItem(String key) {
-    setState(() {
-      _vaultItems.remove(key);
-      _vaultItems = _getSortedMap(_vaultItems);
-    });
-    _saveVault();
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Confirm Delete'),
+        content: Text('Are you sure you want to delete "$key"?'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); // close dialog
+            },
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            onPressed: () {
+              setState(() {
+                _vaultItems.remove(key);
+              });
+
+              Navigator.pop(context); // close dialog
+              _saveVault();
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Item deleted')),
+              );
+            },
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
   }
 
   Timer? _clipboardTimer;
