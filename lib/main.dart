@@ -861,7 +861,7 @@ class _VaultPageState extends State<VaultPage> {
   @override
   void initState() {
     super.initState();
-    _loadVault();
+    _loadVault(widget.vaultResponse);
   }
 
   @override
@@ -870,8 +870,25 @@ class _VaultPageState extends State<VaultPage> {
     super.dispose();
   }
 
-  Future<void> _loadVault() async {
-    final blob = widget.vaultResponse['blob'];
+  Future<void> _loadVault([Map<String, dynamic>? vaultData]) async {
+    Map<String, dynamic> data;
+
+    if (vaultData != null) {
+      data = vaultData;
+    } else {
+      try {
+        data = await _authService.getVault(widget.token);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to refresh vault: $e')),
+          );
+        }
+        return;
+      }
+    }
+
+    final blob = data['blob'];
     if (blob == null) return;
 
     final decrypted = await _authService.decryptVault(
@@ -1142,6 +1159,23 @@ class _VaultPageState extends State<VaultPage> {
                 context,
                 MaterialPageRoute(builder: (_) => const SettingsPage()),
               );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.backup),
+            tooltip: 'Encrypted Backups',
+            onPressed: () async {
+              final restored = await showDialog<bool>(
+                context: context,
+                builder: (_) => BackupManagerDialog(
+                  token: widget.token,
+                  authService: _authService,
+                ),
+              );
+
+              if (restored == true) {
+                _loadVault();
+              }
             },
           ),
           IconButton(
