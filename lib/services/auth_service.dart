@@ -5,9 +5,18 @@ import 'package:http/http.dart' as http;
 import 'package:argon2/argon2.dart';
 import 'package:cryptography/cryptography.dart';
 
+class RateLimitException implements Exception {
+  final String message;
+  final int? retryAfter;
+
+  RateLimitException(this.message, [this.retryAfter]);
+
+  @override
+  String toString() => message;
+}
+
 class AuthService {
   static const String baseUrl = 'https://127.0.0.1:8000';
-
   Future<Uint8List> _derive(String password, Uint8List salt) async {
     final argon2 = Argon2BytesGenerator();
 
@@ -117,6 +126,11 @@ class AuthService {
       }),
     );
 
+    if (response.statusCode == 429) {
+      final data = json.decode(response.body);
+      throw RateLimitException(data['detail']);
+    }
+
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw Exception('Registration failed');
     }
@@ -136,6 +150,11 @@ class AuthService {
         'verifier': _bytesToHex(verifier),
       }),
     );
+
+    if (response.statusCode == 429) {
+      final data = json.decode(response.body);
+      throw RateLimitException(data['detail']);
+    }
 
     if (response.statusCode != 200) return null;
 
@@ -199,6 +218,11 @@ class AuthService {
       body: jsonEncode({'username': username, 'code': code}),
     );
 
+    if (response.statusCode == 429) {
+      final data = json.decode(response.body);
+      throw RateLimitException(data['detail']);
+    }
+
     return response.statusCode == 200;
   }
 
@@ -221,6 +245,11 @@ class AuthService {
         'mfa_code': mfaCode,
       }),
     );
+
+    if (response.statusCode == 429) {
+      final data = json.decode(response.body);
+      throw RateLimitException(data['detail']);
+    }
 
     if (response.statusCode != 200) return null;
 

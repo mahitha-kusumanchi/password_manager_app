@@ -16,6 +16,15 @@ import 'dart:async';
 
 import 'dart:io';
 
+/// DEV ONLY: HttpOverrides for trusting self-signed certificates during local development
+class DevHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
+  }
+}
+
 void main() {
   // DEV ONLY: Trust self-signed certificates for local development
   HttpOverrides.global = DevHttpOverrides();
@@ -27,15 +36,6 @@ void main() {
       child: const MyApp(),
     ),
   );
-}
-
-// Development-only override to accept self-signed certificates
-class DevHttpOverrides extends HttpOverrides {
-  @override
-  HttpClient createHttpClient(SecurityContext? context) {
-    return super.createHttpClient(context)
-      ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
-  }
 }
 
 /* =========================
@@ -225,6 +225,29 @@ class _LoginPageState extends State<LoginPage> {
 
   /// Handles login authentication flow
   /// Validates inputs, calls auth service, and navigates on success
+  void _showSecurityAlert(String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: const [
+            Icon(Icons.gpp_bad_rounded, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Security Alert'),
+          ],
+        ),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _login() async {
     setState(() {
       _loading = true;
@@ -287,9 +310,14 @@ class _LoginPageState extends State<LoginPage> {
         );
       }
     } catch (e) {
-      setState(() {
-        _error = e.toString().replaceFirst('Exception: ', '');
-      });
+      if (e is RateLimitException) {
+        if (!mounted) return;
+        _showSecurityAlert(e.message);
+      } else {
+        setState(() {
+          _error = e.toString().replaceFirst('Exception: ', '');
+        });
+      }
     } finally {
       setState(() {
         _loading = false;
@@ -635,6 +663,29 @@ class _RegisterPasswordPageState extends State<RegisterPasswordPage> {
   String _error = '';
 
   /// Registers new account and automatically logs in
+  void _showSecurityAlert(String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: const [
+            Icon(Icons.gpp_bad_rounded, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Security Alert'),
+          ],
+        ),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _register() async {
     setState(() {
       _loading = true;
@@ -674,9 +725,14 @@ class _RegisterPasswordPageState extends State<RegisterPasswordPage> {
         ),
       );
     } catch (e) {
-      setState(() {
-        _error = e.toString().replaceFirst('Exception: ', '');
-      });
+      if (e is RateLimitException) {
+        if (!mounted) return;
+        _showSecurityAlert(e.message);
+      } else {
+        setState(() {
+          _error = e.toString().replaceFirst('Exception: ', '');
+        });
+      }
     } finally {
       setState(() {
         _loading = false;
@@ -1340,12 +1396,40 @@ class _MfaVerifyPageState extends State<MfaVerifyPage> {
         ),
       );
     } catch (e) {
-      setState(() {
-        _error = e.toString().replaceFirst('Exception: ', '');
-      });
+      if (e is RateLimitException) {
+        if (!mounted) return;
+        _showSecurityAlert(e.message);
+      } else {
+        setState(() {
+          _error = e.toString().replaceFirst('Exception: ', '');
+        });
+      }
     } finally {
       setState(() => _loading = false);
     }
+  }
+
+  void _showSecurityAlert(String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: const [
+            Icon(Icons.gpp_bad_rounded, color: Colors.red),
+            SizedBox(width: 24),
+            Text('Security Alert'),
+          ],
+        ),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
