@@ -108,6 +108,49 @@ class _BackupManagerDialogState extends State<BackupManagerDialog> {
     }
   }
 
+  Future<void> _deleteBackup(String filename) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Backup'),
+        content: Text('Are you sure you want to delete "$filename"? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _loading = true);
+
+    try {
+      await widget.authService.deleteBackup(widget.token, filename);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Backup deleted successfully')),
+        );
+      }
+      await _loadBackups();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _error = e.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
   String _formatSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
@@ -143,9 +186,12 @@ class _BackupManagerDialogState extends State<BackupManagerDialog> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Encrypted Backups',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                const Expanded(
+                  child: Text(
+                    'Encrypted Backups',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.close),
@@ -172,7 +218,8 @@ class _BackupManagerDialogState extends State<BackupManagerDialog> {
                             return ListTile(
                               leading: const Icon(Icons.backup),
                               title: Text(backup.filename),
-                              subtitle: Row(
+                              subtitle: Wrap(
+                                crossAxisAlignment: WrapCrossAlignment.center,
                                 children: [
                                   Text(_formatDate(backup.timestamp)),
                                   const SizedBox(width: 8),
@@ -181,12 +228,23 @@ class _BackupManagerDialogState extends State<BackupManagerDialog> {
                                   Text(_formatSize(backup.size)),
                                 ],
                               ),
-                              trailing: ElevatedButton(
-                                onPressed: () => _restoreBackup(backup.filename),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.orange,
-                                ),
-                                child: const Text('Restore'),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.delete, color: Colors.red),
+                                    onPressed: () => _deleteBackup(backup.filename),
+                                    tooltip: 'Delete Backup',
+                                  ),
+                                  const SizedBox(width: 8),
+                                  ElevatedButton(
+                                    onPressed: () => _restoreBackup(backup.filename),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.orange,
+                                    ),
+                                    child: const Text('Restore'),
+                                  ),
+                                ],
                               ),
                             );
                           },

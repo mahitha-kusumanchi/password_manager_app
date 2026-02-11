@@ -308,6 +308,17 @@ class AuthService {
     }
   }
 
+  Future<void> deleteBackup(String token, String filename) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/backups/$filename'),
+      headers: {'Authorization': token},
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to delete backup');
+    }
+  }
+
   Uint8List _randomBytes(int length) {
     final rnd = Random.secure();
     return Uint8List.fromList(List.generate(length, (_) => rnd.nextInt(256)));
