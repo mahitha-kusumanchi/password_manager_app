@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 // UI ENHANCEMENT: Provider for state management of settings
 import 'package:provider/provider.dart';
 import 'services/auth_service.dart';
+import 'services/log_service.dart';
 import 'widgets/app_hero_title.dart';
 import 'widgets/backup_dialog.dart';
 import 'docs_page.dart';
@@ -12,6 +13,8 @@ import 'pages/settings_page.dart';
 import 'providers/settings_provider.dart';
 // UI ENHANCEMENT: Comprehensive theme system with dark/light and high contrast modes
 import 'theme/app_theme.dart';
+import 'pages/log_page.dart';
+import 'widgets/password_generator_dialog.dart';
 import 'dart:async';
 
 import 'dart:io';
@@ -217,6 +220,7 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final _authService = AuthService();
+  final _logService = LogService();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
 
@@ -273,6 +277,9 @@ class _LoginPageState extends State<LoginPage> {
       final token = await _authService.login(username, password);
       if (token == null)
         throw Exception('Incorrect password. Please try again.');
+
+      await _logService.logAction('User logged in: $username');
+
 
       // Check if MFA is enabled
       final mfaEnabled = await _authService.checkMfaStatus(username);
@@ -478,6 +485,7 @@ class RegisterUsernamePage extends StatefulWidget {
 
 class _RegisterUsernamePageState extends State<RegisterUsernamePage> {
   final _authService = AuthService();
+  final _logService = LogService();
   final _usernameController = TextEditingController();
 
   bool _loading = false;
@@ -657,6 +665,7 @@ class RegisterPasswordPage extends StatefulWidget {
 
 class _RegisterPasswordPageState extends State<RegisterPasswordPage> {
   final _authService = AuthService();
+  final _logService = LogService();
   final _passwordController = TextEditingController();
 
   bool _loading = false;
@@ -704,6 +713,8 @@ class _RegisterPasswordPageState extends State<RegisterPasswordPage> {
       }
 
       await _authService.register(widget.username, password);
+      await _logService.logAction('User registered: ${widget.username}');
+
       final token = await _authService.login(widget.username, password);
       if (token == null)
         throw Exception(
@@ -919,8 +930,10 @@ class VaultPage extends StatefulWidget {
   State<VaultPage> createState() => _VaultPageState();
 }
 
+
 class _VaultPageState extends State<VaultPage> {
   final _authService = AuthService();
+  final _logService = LogService();
   Map<String, Map<String, String>> _vaultItems = {};
   String _now() {
     final t = DateTime.now();
@@ -1049,9 +1062,29 @@ class _VaultPageState extends State<VaultPage> {
               decoration: const InputDecoration(labelText: 'Title'),
             ),
             const SizedBox(height: 10),
-            TextField(
-              controller: valCtrl,
-              decoration: const InputDecoration(labelText: 'Password'),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: valCtrl,
+                    decoration: const InputDecoration(labelText: 'Password'),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.password),
+                  tooltip: 'Generate Strong Password',
+                  onPressed: () async {
+                    final generated = await showDialog<String>(
+                      context: context,
+                      builder: (_) => const PasswordGeneratorDialog(),
+                    );
+                    if (generated != null) {
+                      valCtrl.text = generated;
+                    }
+                  },
+                ),
+              ],
             ),
           ],
         ),
@@ -1061,7 +1094,7 @@ class _VaultPageState extends State<VaultPage> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               final title = keyCtrl.text.trim();
               final pass = valCtrl.text.trim();
 
@@ -1081,9 +1114,34 @@ class _VaultPageState extends State<VaultPage> {
               }
 
               if (!_isStrongPassword(pass)) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Enter strong password')),
+                final wantGenerate = await showDialog<bool>(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    title: const Text('Weak Password'),
+                    content: const Text(
+                        'This password is not strong enough. Would you like to generate a secure password?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Cancel'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Generate'),
+                      ),
+                    ],
+                  ),
                 );
+
+                if (wantGenerate == true) {
+                  final generated = await showDialog<String>(
+                    context: context,
+                    builder: (_) => const PasswordGeneratorDialog(),
+                  );
+                  if (generated != null) {
+                    valCtrl.text = generated;
+                  }
+                }
                 return;
               }
 
@@ -1096,6 +1154,7 @@ class _VaultPageState extends State<VaultPage> {
 
               Navigator.pop(context);
               _saveVault();
+              _logService.logAction('Item added: $title');
             },
             child: const Text('Add'),
           ),
@@ -1111,9 +1170,29 @@ class _VaultPageState extends State<VaultPage> {
       context: context,
       builder: (_) => AlertDialog(
         title: Text('Edit $key'),
-        content: TextField(
-          controller: valCtrl,
-          decoration: const InputDecoration(labelText: 'Password'),
+
+        content: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: valCtrl,
+                decoration: const InputDecoration(labelText: 'Password'),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.password),
+              tooltip: 'Generate Strong Password',
+              onPressed: () async {
+                final generated = await showDialog<String>(
+                  context: context,
+                  builder: (_) => const PasswordGeneratorDialog(),
+                );
+                if (generated != null) {
+                  valCtrl.text = generated;
+                }
+              },
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -1121,7 +1200,7 @@ class _VaultPageState extends State<VaultPage> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               final newPass = valCtrl.text.trim();
 
               if (newPass.isEmpty) {
@@ -1132,9 +1211,34 @@ class _VaultPageState extends State<VaultPage> {
               }
 
               if (!_isStrongPassword(newPass)) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Enter strong password')),
+                final wantGenerate = await showDialog<bool>(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    title: const Text('Weak Password'),
+                    content: const Text(
+                        'This password is not strong enough. Would you like to generate a secure password?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Cancel'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Generate'),
+                      ),
+                    ],
+                  ),
                 );
+
+                if (wantGenerate == true) {
+                  final generated = await showDialog<String>(
+                    context: context,
+                    builder: (_) => const PasswordGeneratorDialog(),
+                  );
+                  if (generated != null) {
+                    valCtrl.text = generated;
+                  }
+                }
                 return;
               }
 
@@ -1147,6 +1251,7 @@ class _VaultPageState extends State<VaultPage> {
 
               Navigator.pop(context);
               _saveVault();
+              _logService.logAction('Item edited: $key');
             },
             child: const Text('Save'),
           ),
@@ -1179,6 +1284,7 @@ class _VaultPageState extends State<VaultPage> {
 
               Navigator.pop(context); // close dialog
               _saveVault();
+              _logService.logAction('Item deleted: $key');
 
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Item deleted')),
@@ -1231,6 +1337,17 @@ class _VaultPageState extends State<VaultPage> {
           ),
         ),
         actions: [
+          // UI ENHANCEMENT: Log of Action button
+          IconButton(
+            icon: const Icon(Icons.history),
+            tooltip: 'Log of Action',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const LogPage()),
+              );
+            },
+          ),
           // UI ENHANCEMENT: Settings button for accessibility controls
           IconButton(
             icon: const Icon(Icons.settings_outlined),
@@ -1500,6 +1617,7 @@ class MfaSettingsPage extends StatefulWidget {
 
 class _MfaSettingsPageState extends State<MfaSettingsPage> {
   final _authService = AuthService();
+  final _logService = LogService();
   bool _loading = true;
   bool _mfaEnabled = false;
 
@@ -1605,6 +1723,9 @@ class _MfaSettingsPageState extends State<MfaSettingsPage> {
     try {
       final success = await _authService.disableMfa(widget.token);
       if (!success) throw Exception('Failed to disable MFA');
+
+      await _logService.logAction('MFA disabled');
+
 
       if (!mounted) return;
 
@@ -1737,6 +1858,7 @@ class MfaSetupPage extends StatefulWidget {
 
 class _MfaSetupPageState extends State<MfaSetupPage> {
   final _authService = AuthService();
+  final _logService = LogService();
   final _codeController = TextEditingController();
 
   bool _loading = true;
@@ -1793,6 +1915,9 @@ class _MfaSetupPageState extends State<MfaSetupPage> {
       if (!success) {
         throw Exception('Invalid code. Please try again.');
       }
+
+      await _logService.logAction('MFA enabled');
+
 
       if (!mounted) return;
 
