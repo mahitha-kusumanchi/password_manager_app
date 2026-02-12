@@ -265,6 +265,7 @@ class AuthService {
 
     return json.decode(response.body)['filename'];
   }
+
   Future<void> restoreBackup(String token, String filename) async {
     final response = await http.post(
       Uri.parse('$baseUrl/backups/restore'),
