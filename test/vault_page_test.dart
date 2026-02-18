@@ -13,7 +13,14 @@ class FakeAuthService extends AuthService {
 
   void seedVault(Map<String, Map<String, String>> seed) {
     vault = seed.map(
-      (key, value) => MapEntry(key, Map<String, String>.from(value)),
+      (key, value) {
+        final item = Map<String, String>.from(value);
+        // Add 'category' field if missing for backward compatibility with tests
+        if (!item.containsKey('category')) {
+          item['category'] = 'Personal';
+        }
+        return MapEntry(key, item);
+      },
     );
   }
 
@@ -134,7 +141,23 @@ Future<void> _openDeleteDialog(WidgetTester tester, String title) async {
 List<String> _listTitles(WidgetTester tester) {
   return tester
       .widgetList<ListTile>(find.byType(ListTile))
-      .map((tile) => (tile.title as Text).data)
+      .map((tile) {
+        // Handle the new Row structure with title and category chip
+        if (tile.title is Row) {
+          final row = tile.title as Row;
+          if (row.children.isNotEmpty && row.children[0] is Expanded) {
+            final expanded = row.children[0] as Expanded;
+            if (expanded.child is Text) {
+              return (expanded.child as Text).data;
+            }
+          }
+        }
+        // Fallback for old Text format
+        if (tile.title is Text) {
+          return (tile.title as Text).data;
+        }
+        return null;
+      })
       .whereType<String>()
       .toList();
 }
@@ -713,7 +736,8 @@ void main() {
       );
 
       await _openEditDialog(tester, 'Email');
-      final field = tester.widget<TextField>(find.byType(TextField).first);
+      // Find the password TextField by its label
+      final field = tester.widget<TextField>(_fieldWithLabel('Password'));
       expect(field.controller?.text, 'OldPass1!');
     });
 
@@ -1561,7 +1585,23 @@ void main() {
 
       final titles = tester
           .widgetList<ListTile>(find.byType(ListTile))
-          .map((tile) => (tile.title as Text).data)
+          .map((tile) {
+            // Handle the new Row structure with title and category chip
+            if (tile.title is Row) {
+              final row = tile.title as Row;
+              if (row.children.isNotEmpty && row.children[0] is Expanded) {
+                final expanded = row.children[0] as Expanded;
+                if (expanded.child is Text) {
+                  return (expanded.child as Text).data;
+                }
+              }
+            }
+            // Fallback for old Text format
+            if (tile.title is Text) {
+              return (tile.title as Text).data;
+            }
+            return null;
+          })
           .whereType<String>()
           .toList();
 
