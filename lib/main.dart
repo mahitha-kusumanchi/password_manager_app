@@ -942,6 +942,20 @@ class _VaultPageState extends State<VaultPage> {
   late final AuthService _authService;
   late final LogService _logService;
   Map<String, Map<String, String>> _vaultItems = {};
+  late TextEditingController _searchController;
+  String _searchQuery = '';
+  Set<String> _selectedCategories = {'All'};
+
+  final List<String> _categories = [
+    'All',
+    'Work',
+    'Personal',
+    'Banking',
+    'Shopping',
+    'Social Media',
+    'Other',
+  ];
+
   String _now() {
     final t = DateTime.now();
     return "${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')} "
@@ -949,6 +963,39 @@ class _VaultPageState extends State<VaultPage> {
   }
 
   bool _loading = false;
+
+  // -------- SEARCH & FILTER FUNCTION --------
+  Map<String, Map<String, String>> _getFilteredItems(
+      Map<String, Map<String, String>> items) {
+    var filtered = items;
+
+    // Apply category filter
+    if (!_selectedCategories.contains('All')) {
+      filtered = filtered.entries.where((entry) {
+        final category = entry.value['category'] ?? 'Other';
+        return _selectedCategories.contains(category);
+      }).fold<Map<String, Map<String, String>>>({}, (map, entry) {
+        map[entry.key] = entry.value;
+        return map;
+      });
+    }
+
+    // Apply search filter
+    if (_searchQuery.isEmpty) {
+      return filtered;
+    }
+
+    final searchFiltered = <String, Map<String, String>>{};
+    final query = _searchQuery.toLowerCase();
+
+    filtered.forEach((key, value) {
+      if (key.toLowerCase().contains(query)) {
+        searchFiltered[key] = value;
+      }
+    });
+
+    return searchFiltered;
+  }
 
   // -------- SORT FUNCTION --------
   Map<String, Map<String, String>> _getSortedMap(
@@ -962,6 +1009,12 @@ class _VaultPageState extends State<VaultPage> {
   @override
   void initState() {
     super.initState();
+    _searchController = TextEditingController();
+    _searchController.addListener(() {
+      setState(() {
+        _searchQuery = _searchController.text;
+      });
+    });
     _authService = widget.authService;
     _logService = widget.logService;
     _loadVault(widget.vaultResponse);
@@ -970,6 +1023,7 @@ class _VaultPageState extends State<VaultPage> {
   @override
   void dispose() {
     _clipboardTimer?.cancel();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -1055,35 +1109,133 @@ class _VaultPageState extends State<VaultPage> {
     return hasUpper && hasLower && hasNumber && hasSpecial;
   }
 
+  IconData _getCategoryIcon(String category) {
+    switch (category) {
+      case 'Work':
+        return Icons.work;
+      case 'Personal':
+        return Icons.person;
+      case 'Banking':
+        return Icons.account_balance;
+      case 'Shopping':
+        return Icons.shopping_cart;
+      case 'Social Media':
+        return Icons.share;
+      case 'Other':
+        return Icons.category;
+      default:
+        return Icons.category;
+    }
+  }
+
   void _addItem() {
     final keyCtrl = TextEditingController();
     final valCtrl = TextEditingController();
+    late String selectedCategory = 'Personal';
 
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Add Item'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: keyCtrl,
-              decoration: const InputDecoration(labelText: 'Title'),
-            ),
-            const SizedBox(height: 10),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: valCtrl,
-                    decoration: const InputDecoration(labelText: 'Password'),
+      builder: (_) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Add Item'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: keyCtrl,
+                decoration: const InputDecoration(labelText: 'Title'),
+              ),
+              const SizedBox(height: 10),
+              DropdownButton<String>(
+                isExpanded: true,
+                value: selectedCategory,
+                items: _categories
+                    .where((cat) => cat != 'All')
+                    .map((category) => DropdownMenuItem(
+                          value: category,
+                          child: Text(category),
+                        ))
+                    .toList(),
+                onChanged: (category) {
+                  if (category != null) {
+                    setDialogState(() {
+                      selectedCategory = category;
+                    });
+                  }
+                },
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: valCtrl,
+                      decoration: const InputDecoration(labelText: 'Password'),
+                    ),
                   ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.password),
-                  tooltip: 'Generate Strong Password',
-                  onPressed: () async {
+                  IconButton(
+                    icon: const Icon(Icons.password),
+                    tooltip: 'Generate Strong Password',
+                    onPressed: () async {
+                      final generated = await showDialog<String>(
+                        context: context,
+                        builder: (_) => const PasswordGeneratorDialog(),
+                      );
+                      if (generated != null) {
+                        valCtrl.text = generated;
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final title = keyCtrl.text.trim();
+                final pass = valCtrl.text.trim();
+
+                if (title.isEmpty || pass.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Title and Password cannot be empty')),
+                  );
+                  return;
+                }
+
+                if (_vaultItems.containsKey(title)) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Title already exists')),
+                  );
+                  return;
+                }
+
+                if (!_isStrongPassword(pass)) {
+                  final wantGenerate = await showDialog<bool>(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      title: const Text('Weak Password'),
+                      content: const Text(
+                          'This password is not strong enough. Would you like to generate a secure password?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('Cancel'),
+                        ),
+                        ElevatedButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text('Generate'),
+                        ),
+                      ],
+                    ),
+                  );
+
+                  if (wantGenerate == true) {
                     final generated = await showDialog<String>(
                       context: context,
                       builder: (_) => const PasswordGeneratorDialog(),
@@ -1091,179 +1243,150 @@ class _VaultPageState extends State<VaultPage> {
                     if (generated != null) {
                       valCtrl.text = generated;
                     }
-                  },
-                ),
-              ],
+                  }
+                  return;
+                }
+
+                setState(() {
+                  _vaultItems[title] = {
+                    "password": pass,
+                    "category": selectedCategory,
+                    "updatedAt": _now(),
+                  };
+                });
+
+                Navigator.pop(context);
+                _saveVault();
+                _logService.logAction('Item added: $title');
+              },
+              child: const Text('Add'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final title = keyCtrl.text.trim();
-              final pass = valCtrl.text.trim();
-
-              if (title.isEmpty || pass.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text('Title and Password cannot be empty')),
-                );
-                return;
-              }
-
-              if (_vaultItems.containsKey(title)) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Title already exists')),
-                );
-                return;
-              }
-
-              if (!_isStrongPassword(pass)) {
-                final wantGenerate = await showDialog<bool>(
-                  context: context,
-                  builder: (_) => AlertDialog(
-                    title: const Text('Weak Password'),
-                    content: const Text(
-                        'This password is not strong enough. Would you like to generate a secure password?'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Cancel'),
-                      ),
-                      ElevatedButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: const Text('Generate'),
-                      ),
-                    ],
-                  ),
-                );
-
-                if (wantGenerate == true) {
-                  final generated = await showDialog<String>(
-                    context: context,
-                    builder: (_) => const PasswordGeneratorDialog(),
-                  );
-                  if (generated != null) {
-                    valCtrl.text = generated;
-                  }
-                }
-                return;
-              }
-
-              setState(() {
-                _vaultItems[title] = {
-                  "password": pass,
-                  "updatedAt": _now(),
-                };
-              });
-
-              Navigator.pop(context);
-              _saveVault();
-              _logService.logAction('Item added: $title');
-            },
-            child: const Text('Add'),
-          ),
-        ],
       ),
     );
   }
 
-  void _editItem(String key, String currentValue) {
+  void _editItem(String key, String currentValue, String currentCategory) {
     final valCtrl = TextEditingController(text: currentValue);
+    late String selectedCategory = currentCategory;
 
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: Text('Edit $key'),
-        content: Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: valCtrl,
-                decoration: const InputDecoration(labelText: 'Password'),
+      builder: (_) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text('Edit $key'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButton<String>(
+                isExpanded: true,
+                value: selectedCategory,
+                items: _categories
+                    .where((cat) => cat != 'All')
+                    .map((category) => DropdownMenuItem(
+                          value: category,
+                          child: Text(category),
+                        ))
+                    .toList(),
+                onChanged: (category) {
+                  if (category != null) {
+                    setDialogState(() {
+                      selectedCategory = category;
+                    });
+                  }
+                },
               ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: valCtrl,
+                      decoration: const InputDecoration(labelText: 'Password'),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.password),
+                    tooltip: 'Generate Strong Password',
+                    onPressed: () async {
+                      final generated = await showDialog<String>(
+                        context: context,
+                        builder: (_) => const PasswordGeneratorDialog(),
+                      );
+                      if (generated != null) {
+                        valCtrl.text = generated;
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
             ),
-            IconButton(
-              icon: const Icon(Icons.password),
-              tooltip: 'Generate Strong Password',
+            ElevatedButton(
               onPressed: () async {
-                final generated = await showDialog<String>(
-                  context: context,
-                  builder: (_) => const PasswordGeneratorDialog(),
-                );
-                if (generated != null) {
-                  valCtrl.text = generated;
+                final newPass = valCtrl.text.trim();
+
+                if (newPass.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Password cannot be empty')),
+                  );
+                  return;
                 }
+
+                if (!_isStrongPassword(newPass)) {
+                  final wantGenerate = await showDialog<bool>(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      title: const Text('Weak Password'),
+                      content: const Text(
+                          'This password is not strong enough. Would you like to generate a secure password?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('Cancel'),
+                        ),
+                        ElevatedButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text('Generate'),
+                        ),
+                      ],
+                    ),
+                  );
+
+                  if (wantGenerate == true) {
+                    final generated = await showDialog<String>(
+                      context: context,
+                      builder: (_) => const PasswordGeneratorDialog(),
+                    );
+                    if (generated != null) {
+                      valCtrl.text = generated;
+                    }
+                  }
+                  return;
+                }
+
+                setState(() {
+                  _vaultItems[key] = {
+                    "password": newPass,
+                    "category": selectedCategory,
+                    "updatedAt": _now(),
+                  };
+                });
+
+                Navigator.pop(context);
+                _saveVault();
+                _logService.logAction('Item edited: $key');
               },
+              child: const Text('Save'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final newPass = valCtrl.text.trim();
-
-              if (newPass.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Password cannot be empty')),
-                );
-                return;
-              }
-
-              if (!_isStrongPassword(newPass)) {
-                final wantGenerate = await showDialog<bool>(
-                  context: context,
-                  builder: (_) => AlertDialog(
-                    title: const Text('Weak Password'),
-                    content: const Text(
-                        'This password is not strong enough. Would you like to generate a secure password?'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Cancel'),
-                      ),
-                      ElevatedButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: const Text('Generate'),
-                      ),
-                    ],
-                  ),
-                );
-
-                if (wantGenerate == true) {
-                  final generated = await showDialog<String>(
-                    context: context,
-                    builder: (_) => const PasswordGeneratorDialog(),
-                  );
-                  if (generated != null) {
-                    valCtrl.text = generated;
-                  }
-                }
-                return;
-              }
-
-              setState(() {
-                _vaultItems[key] = {
-                  "password": newPass,
-                  "updatedAt": _now(),
-                };
-              });
-
-              Navigator.pop(context);
-              _saveVault();
-              _logService.logAction('Item edited: $key');
-            },
-            child: const Text('Save'),
-          ),
-        ],
       ),
     );
   }
@@ -1333,6 +1456,7 @@ class _VaultPageState extends State<VaultPage> {
   @override
   Widget build(BuildContext context) {
     final sortedItems = _getSortedMap(_vaultItems);
+    final filteredItems = _getFilteredItems(sortedItems);
 
     return Scaffold(
       appBar: AppBar(
@@ -1424,34 +1548,140 @@ class _VaultPageState extends State<VaultPage> {
       ),
       body: sortedItems.isEmpty
           ? const Center(child: Text('Your vault is empty'))
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: sortedItems.entries.map((entry) {
-                return Card(
-                  child: ListTile(
-                    title: Text(entry.key),
-                    subtitle: Text("Updated: ${entry.value['updatedAt']}"),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.copy),
-                          onPressed: () => _copy(entry.value["password"]!),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.edit),
-                          onPressed: () =>
-                              _editItem(entry.key, entry.value["password"]!),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => _deleteItem(entry.key),
-                        ),
-                      ],
+          : Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Search credentials...',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {
+                                  _searchQuery = '';
+                                });
+                              },
+                            )
+                          : null,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                     ),
                   ),
-                );
-              }).toList(),
+                ),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: _categories.map((category) {
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: FilterChip(
+                          label: Text(category),
+                          selected: _selectedCategories.contains(category),
+                          onSelected: (selected) {
+                            setState(() {
+                              if (category == 'All') {
+                                // 'All' is a special case - selection/deselection toggles between just 'All' and other categories
+                                if (selected) {
+                                  _selectedCategories = {'All'};
+                                } else {
+                                  // Don't allow deselecting all
+                                  _selectedCategories = {'All'};
+                                }
+                              } else {
+                                if (selected) {
+                                  // If adding a category, ensure 'All' is not selected
+                                  _selectedCategories.remove('All');
+                                  _selectedCategories.add(category);
+                                } else {
+                                  // If removing a category and no categories are left, default to 'All'
+                                  _selectedCategories.remove(category);
+                                  if (_selectedCategories.isEmpty) {
+                                    _selectedCategories.add('All');
+                                  }
+                                }
+                              }
+                            });
+                          },
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+                Expanded(
+                  child: filteredItems.isEmpty
+                      ? Center(
+                          child: Text(
+                            _searchQuery.isEmpty
+                                ? 'Your vault is empty'
+                                : 'No credentials found',
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                        )
+                      : ListView(
+                          padding: const EdgeInsets.all(16),
+                          children: filteredItems.entries.map((entry) {
+                            final category = entry.value['category'] ?? 'Other';
+                            return Card(
+                              child: ListTile(
+                                title: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(entry.key),
+                                    ),
+                                    Chip(
+                                      label: Text(
+                                        category,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      avatar: Icon(
+                                        _getCategoryIcon(category),
+                                        size: 16,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                subtitle: Text(
+                                    "Updated: ${entry.value['updatedAt']}"),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.copy),
+                                      onPressed: () =>
+                                          _copy(entry.value["password"]!),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.edit),
+                                      onPressed: () => _editItem(entry.key,
+                                          entry.value["password"]!, category),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete,
+                                          color: Colors.red),
+                                      onPressed: () => _deleteItem(entry.key),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                ),
+              ],
             ),
       floatingActionButton: FloatingActionButton(
         onPressed: _addItem,
