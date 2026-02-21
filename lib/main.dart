@@ -3,11 +3,13 @@ import 'package:flutter/services.dart';
 // UI ENHANCEMENT: Provider for state management of settings
 import 'package:provider/provider.dart';
 import 'services/auth_service.dart';
+import 'services/log_service.dart';
 import 'widgets/app_hero_title.dart';
 import 'widgets/backup_dialog.dart';
 import 'docs_page.dart';
 // UI ENHANCEMENT: New settings page for accessibility controls
 import 'pages/settings_page.dart';
+import 'pages/locked_vault_page.dart';
 // UI ENHANCEMENT: Settings provider for theme and accessibility preferences
 import 'providers/settings_provider.dart';
 // UI ENHANCEMENT: Comprehensive theme system with dark/light and high contrast modes
@@ -929,12 +931,17 @@ class VaultPage extends StatefulWidget {
   State<VaultPage> createState() => _VaultPageState();
 }
 
-class _VaultPageState extends State<VaultPage> {
+class _VaultPageState extends State<VaultPage> with WidgetsBindingObserver {
   late final AuthService _authService;
   Map<String, Map<String, String>> _vaultItems = {};
   late TextEditingController _searchController;
   String _searchQuery = '';
   Set<String> _selectedCategories = {'All'};
+
+  // SECURITY ENHANCEMENT: Auto-lock on inactivity
+  late InactivityService _inactivityService;
+  bool _isVaultLocked = false;
+  late String _unlockedPassword; // Current password to use for unlocking
 
   final List<String> _categories = [
     'All',
@@ -999,6 +1006,10 @@ class _VaultPageState extends State<VaultPage> {
   @override
   void initState() {
     super.initState();
+
+    // Add lifecycle observer for app state changes
+    WidgetsBinding.instance.addObserver(this);
+
     _searchController = TextEditingController();
     _searchController.addListener(() {
       setState(() {
@@ -1006,11 +1017,67 @@ class _VaultPageState extends State<VaultPage> {
       });
     });
     _authService = widget.authService;
+    _logService = widget.logService;
     _loadVault(widget.vaultResponse);
+  }
+
+  /// Initialize the inactivity service with auto-lock functionality
+  void _initializeInactivityService() {
+    // Get the auto-lock timeout from settings
+    final settings = Provider.of<SettingsProvider>(context, listen: false);
+
+    _inactivityService = InactivityService(
+      inactivityTimeout: settings.autoLockTimeout,
+    );
+
+    _inactivityService.startMonitoring(
+      onInactivityDetected: _lockVault,
+    );
+  }
+
+  /// Lock the vault due to inactivity
+  void _lockVault() {
+    debugPrint(
+        '[VaultPage] Lock vault called. Current state: _isVaultLocked=$_isVaultLocked');
+    if (_isVaultLocked) {
+      debugPrint('[VaultPage] Vault already locked, skipping');
+      return; // Already locked
+    }
+
+    debugPrint('[VaultPage] Locking vault due to inactivity');
+    setState(() {
+      _isVaultLocked = true;
+    });
+
+    _logService.logAction('Vault auto-locked due to inactivity');
+  }
+
+  /// Unlock the vault with verified password
+  void _unlockVault(String password) {
+    setState(() {
+      _isVaultLocked = false;
+      _unlockedPassword = password;
+    });
+
+    // Reset inactivity timer when unlocking
+    _inactivityService.resetInactivityTimer();
+  }
+
+  /// Handle app lifecycle changes
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _inactivityService.handleAppLifecycleChange(state);
   }
 
   @override
   void dispose() {
+    // Remove lifecycle observer
+    WidgetsBinding.instance.removeObserver(this);
+
+    // Stop inactivity monitoring
+    _inactivityService.stopMonitoring();
+    _inactivityService.dispose();
+
     _clipboardTimer?.cancel();
     _searchController.dispose();
     super.dispose();
@@ -1039,7 +1106,7 @@ class _VaultPageState extends State<VaultPage> {
 
     final decrypted = await _authService.decryptVault(
       Map<String, dynamic>.from(blob),
-      widget.password,
+      _unlockedPassword,
     );
 
     setState(() {
@@ -1081,8 +1148,11 @@ class _VaultPageState extends State<VaultPage> {
     setState(() => _loading = true);
 
     final encrypted =
-        await _authService.encryptVault(_vaultItems, widget.password);
+        await _authService.encryptVault(_vaultItems, _unlockedPassword);
     await _authService.updateVault(widget.token, encrypted);
+
+    // SECURITY ENHANCEMENT: Reset inactivity timer on vault save activity
+    _inactivityService.resetInactivityTimer();
 
     setState(() => _loading = false);
   }
@@ -1441,6 +1511,16 @@ class _VaultPageState extends State<VaultPage> {
 
   @override
   Widget build(BuildContext context) {
+    // SECURITY ENHANCEMENT: Show locked screen if vault is locked
+    if (_isVaultLocked) {
+      return LockedVaultPage(
+        username: widget.username,
+        token: widget.token,
+        password: widget.password,
+        onUnlock: _unlockVault,
+      );
+    }
+
     final sortedItems = _getSortedMap(_vaultItems);
     final filteredItems = _getFilteredItems(sortedItems);
 
@@ -1462,8 +1542,7 @@ class _VaultPageState extends State<VaultPage> {
             onPressed: () {
               Navigator.push(
                 context,
-                // Pass token so LogPage can fetch this user's logs from server
-                MaterialPageRoute(builder: (_) => LogPage(token: widget.token)),
+                MaterialPageRoute(builder: (_) => const LogPage()),
               );
             },
           ),
@@ -1523,7 +1602,7 @@ class _VaultPageState extends State<VaultPage> {
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Logout',
-            onPressed: () async {
+            onPressed: () {
               Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(builder: (_) => const StartPage()),
