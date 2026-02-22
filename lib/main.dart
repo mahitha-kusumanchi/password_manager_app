@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'services/auth_service.dart';
 import 'services/log_service.dart';
+import 'services/inactivity_service.dart';
 import 'widgets/app_hero_title.dart';
 import 'widgets/backup_dialog.dart';
 import 'docs_page.dart';
@@ -1018,6 +1019,11 @@ class _VaultPageState extends State<VaultPage> with WidgetsBindingObserver {
     });
     _authService = widget.authService;
     _logService = widget.logService;
+    _unlockedPassword = widget.password;
+
+    // SECURITY ENHANCEMENT: Initialize inactivity service
+    _initializeInactivityService();
+
     _loadVault(widget.vaultResponse);
   }
 
@@ -1524,234 +1530,242 @@ class _VaultPageState extends State<VaultPage> with WidgetsBindingObserver {
     final sortedItems = _getSortedMap(_vaultItems);
     final filteredItems = _getFilteredItems(sortedItems);
 
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: true,
-        title: const Text(
-          'Your Vault',
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.6,
+    // SECURITY ENHANCEMENT: Wrap UI in Listener to detect user activity (pointer events)
+    return Listener(
+      onPointerDown: (_) {
+        debugPrint('[VaultPage] Pointer down detected');
+        _inactivityService.resetInactivityTimer();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          automaticallyImplyLeading: true,
+          title: const Text(
+            'Your Vault',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.6,
+            ),
           ),
-        ),
-        actions: [
-          // UI ENHANCEMENT: Log of Action button
-          IconButton(
-            icon: const Icon(Icons.history),
-            tooltip: 'Log of Action',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const LogPage()),
-              );
-            },
-          ),
-          // UI ENHANCEMENT: Settings button for accessibility controls
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Settings',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SettingsPage()),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.backup),
-            tooltip: 'Encrypted Backups',
-            onPressed: () async {
-              final restored = await showDialog<bool>(
-                context: context,
-                builder: (_) => BackupManagerDialog(
-                  token: widget.token,
-                  authService: _authService,
-                ),
-              );
-
-              if (restored == true) {
-                _loadVault();
-              }
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.security),
-            tooltip: 'Security & MFA Settings',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => MfaSettingsPage(
-                    username: widget.username,
+          actions: [
+            // UI ENHANCEMENT: Log of Action button
+            IconButton(
+              icon: const Icon(Icons.history),
+              tooltip: 'Log of Action',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LogPage()),
+                );
+              },
+            ),
+            // UI ENHANCEMENT: Settings button for accessibility controls
+            IconButton(
+              icon: const Icon(Icons.settings_outlined),
+              tooltip: 'Settings',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsPage()),
+                );
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.backup),
+              tooltip: 'Encrypted Backups',
+              onPressed: () async {
+                final restored = await showDialog<bool>(
+                  context: context,
+                  builder: (_) => BackupManagerDialog(
                     token: widget.token,
+                    authService: _authService,
                   ),
-                ),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.info_outline),
-            tooltip: 'Security Documentation',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const DocumentationPage()),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Logout',
-            onPressed: () {
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const StartPage()),
-                (_) => false,
-              );
-            },
-          ),
-        ],
-      ),
-      body: sortedItems.isEmpty
-          ? const Center(child: Text('Your vault is empty'))
-          : Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Search credentials...',
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: _searchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: () {
-                                _searchController.clear();
-                                setState(() {
-                                  _searchQuery = '';
-                                });
-                              },
-                            )
-                          : null,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
+                );
+
+                if (restored == true) {
+                  _loadVault();
+                }
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.security),
+              tooltip: 'Security & MFA Settings',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => MfaSettingsPage(
+                      username: widget.username,
+                      token: widget.token,
+                    ),
+                  ),
+                );
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.info_outline),
+              tooltip: 'Security Documentation',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DocumentationPage()),
+                );
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.logout),
+              tooltip: 'Logout',
+              onPressed: () {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (_) => const StartPage()),
+                  (_) => false,
+                );
+              },
+            ),
+          ],
+        ),
+        body: sortedItems.isEmpty
+            ? const Center(child: Text('Your vault is empty'))
+            : Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: 'Search credentials...',
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() {
+                                    _searchQuery = '';
+                                  });
+                                },
+                              )
+                            : null,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    children: _categories.map((category) {
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: FilterChip(
-                          label: Text(category),
-                          selected: _selectedCategories.contains(category),
-                          onSelected: (selected) {
-                            setState(() {
-                              if (category == 'All') {
-                                // 'All' is a special case - selection/deselection toggles between just 'All' and other categories
-                                if (selected) {
-                                  _selectedCategories = {'All'};
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: _categories.map((category) {
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: FilterChip(
+                            label: Text(category),
+                            selected: _selectedCategories.contains(category),
+                            onSelected: (selected) {
+                              setState(() {
+                                if (category == 'All') {
+                                  // 'All' is a special case - selection/deselection toggles between just 'All' and other categories
+                                  if (selected) {
+                                    _selectedCategories = {'All'};
+                                  } else {
+                                    // Don't allow deselecting all
+                                    _selectedCategories = {'All'};
+                                  }
                                 } else {
-                                  // Don't allow deselecting all
-                                  _selectedCategories = {'All'};
-                                }
-                              } else {
-                                if (selected) {
-                                  // If adding a category, ensure 'All' is not selected
-                                  _selectedCategories.remove('All');
-                                  _selectedCategories.add(category);
-                                } else {
-                                  // If removing a category and no categories are left, default to 'All'
-                                  _selectedCategories.remove(category);
-                                  if (_selectedCategories.isEmpty) {
-                                    _selectedCategories.add('All');
+                                  if (selected) {
+                                    // If adding a category, ensure 'All' is not selected
+                                    _selectedCategories.remove('All');
+                                    _selectedCategories.add(category);
+                                  } else {
+                                    // If removing a category and no categories are left, default to 'All'
+                                    _selectedCategories.remove(category);
+                                    if (_selectedCategories.isEmpty) {
+                                      _selectedCategories.add('All');
+                                    }
                                   }
                                 }
-                              }
-                            });
-                          },
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-                Expanded(
-                  child: filteredItems.isEmpty
-                      ? Center(
-                          child: Text(
-                            _searchQuery.isEmpty
-                                ? 'Your vault is empty'
-                                : 'No credentials found',
-                            style: const TextStyle(fontSize: 16),
+                              });
+                            },
                           ),
-                        )
-                      : ListView(
-                          padding: const EdgeInsets.all(16),
-                          children: filteredItems.entries.map((entry) {
-                            final category = entry.value['category'] ?? 'Other';
-                            return Card(
-                              child: ListTile(
-                                title: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(entry.key),
-                                    ),
-                                    Chip(
-                                      label: Text(
-                                        category,
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  Expanded(
+                    child: filteredItems.isEmpty
+                        ? Center(
+                            child: Text(
+                              _searchQuery.isEmpty
+                                  ? 'Your vault is empty'
+                                  : 'No credentials found',
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                          )
+                        : ListView(
+                            padding: const EdgeInsets.all(16),
+                            children: filteredItems.entries.map((entry) {
+                              final category =
+                                  entry.value['category'] ?? 'Other';
+                              return Card(
+                                child: ListTile(
+                                  title: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(entry.key),
+                                      ),
+                                      Chip(
+                                        label: Text(
+                                          category,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        avatar: Icon(
+                                          _getCategoryIcon(category),
+                                          size: 16,
                                         ),
                                       ),
-                                      avatar: Icon(
-                                        _getCategoryIcon(category),
-                                        size: 16,
+                                    ],
+                                  ),
+                                  subtitle: Text(
+                                      "Updated: ${entry.value['updatedAt']}"),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(Icons.copy),
+                                        onPressed: () =>
+                                            _copy(entry.value["password"]!),
                                       ),
-                                    ),
-                                  ],
+                                      IconButton(
+                                        icon: const Icon(Icons.edit),
+                                        onPressed: () => _editItem(entry.key,
+                                            entry.value["password"]!, category),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete,
+                                            color: Colors.red),
+                                        onPressed: () => _deleteItem(entry.key),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                                subtitle: Text(
-                                    "Updated: ${entry.value['updatedAt']}"),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.copy),
-                                      onPressed: () =>
-                                          _copy(entry.value["password"]!),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.edit),
-                                      onPressed: () => _editItem(entry.key,
-                                          entry.value["password"]!, category),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete,
-                                          color: Colors.red),
-                                      onPressed: () => _deleteItem(entry.key),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                ),
-              ],
-            ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _addItem,
-        child: const Icon(Icons.add),
+                              );
+                            }).toList(),
+                          ),
+                  ),
+                ],
+              ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: _addItem,
+          child: const Icon(Icons.add),
+        ),
       ),
     );
   }
