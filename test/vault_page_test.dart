@@ -2255,6 +2255,14 @@ void main() {
       );
 
       await tester.tap(find.byIcon(Icons.copy));
+      await tester.pumpAndSettle();
+
+      // Enter password in authorization dialog
+      await tester.enterText(
+          find.byWidgetPredicate(
+              (w) => w is TextField && w.decoration?.hintText == 'Password'),
+          'Password1!');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Authorize'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pumpAndSettle();
@@ -2281,6 +2289,14 @@ void main() {
       );
 
       await tester.tap(_iconInTile('GitHub', Icons.copy));
+      await tester.pumpAndSettle();
+
+      // Enter password in authorization dialog
+      await tester.enterText(
+          find.byWidgetPredicate(
+              (w) => w is TextField && w.decoration?.hintText == 'Password'),
+          'Password1!');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Authorize'));
       await tester.pump();
 
       expect(clipboardCalls.first.arguments['text'], passwordText);
@@ -2302,6 +2318,14 @@ void main() {
       );
 
       await tester.tap(_iconInTile('GitHub', Icons.copy));
+      await tester.pumpAndSettle();
+
+      // Enter password in authorization dialog
+      await tester.enterText(
+          find.byWidgetPredicate(
+              (w) => w is TextField && w.decoration?.hintText == 'Password'),
+          'Password1!');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Authorize'));
       await tester.pump();
 
       expect(clipboardCalls, isNotEmpty);
@@ -2325,6 +2349,14 @@ void main() {
       );
 
       await tester.tap(_iconInTile('GitHub', Icons.copy));
+      await tester.pumpAndSettle();
+
+      // Enter password in authorization dialog
+      await tester.enterText(
+          find.byWidgetPredicate(
+              (w) => w is TextField && w.decoration?.hintText == 'Password'),
+          'Password1!');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Authorize'));
       await tester.pumpAndSettle(); // Process tap and show "Copied" snackbar
 
       // Dismiss the first snackbar by waiting for it to auto-dismiss
@@ -2350,13 +2382,28 @@ void main() {
             'updatedAt': '2024-01-01 10:00',
           },
         },
-        clipboardDelay: const Duration(milliseconds: 100),
+        clipboardDelay: const Duration(milliseconds: 500),
       );
 
       await tester.tap(_iconInTile('GitHub', Icons.copy));
+      await tester.pumpAndSettle();
+      // Enter password in first authorization dialog
+      await tester.enterText(
+          find.byWidgetPredicate(
+              (w) => w is TextField && w.decoration?.hintText == 'Password'),
+          'Password1!');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Authorize'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
+
       await tester.tap(_iconInTile('GitHub', Icons.copy));
+      await tester.pumpAndSettle();
+      // Enter password in second authorization dialog
+      await tester.enterText(
+          find.byWidgetPredicate(
+              (w) => w is TextField && w.decoration?.hintText == 'Password'),
+          'Password1!');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Authorize'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pump();
@@ -2387,6 +2434,14 @@ void main() {
       );
 
       await tester.tap(_iconInTile('Email', Icons.copy));
+      await tester.pumpAndSettle();
+
+      // Enter password in authorization dialog
+      await tester.enterText(
+          find.byWidgetPredicate(
+              (w) => w is TextField && w.decoration?.hintText == 'Password'),
+          'Password1!');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Authorize'));
       await tester.pump();
 
       expect(clipboardCalls.first.arguments['text'], 'EmailPass1!');
@@ -2409,11 +2464,27 @@ void main() {
             'updatedAt': '2024-01-01 10:00',
           },
         },
+        clipboardDelay: const Duration(milliseconds: 1000),
       );
 
       await tester.tap(_iconInTile('GitHub', Icons.copy));
+      await tester.pumpAndSettle();
+      // Enter password for GitHub
+      await tester.enterText(
+          find.byWidgetPredicate(
+              (w) => w is TextField && w.decoration?.hintText == 'Password'),
+          'Password1!');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Authorize'));
       await tester.pump();
+
       await tester.tap(_iconInTile('Email', Icons.copy));
+      await tester.pumpAndSettle();
+      // Enter password for Email
+      await tester.enterText(
+          find.byWidgetPredicate(
+              (w) => w is TextField && w.decoration?.hintText == 'Password'),
+          'Password1!');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Authorize'));
       await tester.pump();
 
       expect(clipboardCalls.first.arguments['text'], 'GitHubPass1!');
@@ -2437,10 +2508,25 @@ void main() {
       );
 
       await tester.tap(_iconInTile('GitHub', Icons.copy));
+      await tester.pumpAndSettle();
+      // Enter password for first copy
+      await tester.enterText(
+          find.byWidgetPredicate(
+              (w) => w is TextField && w.decoration?.hintText == 'Password'),
+          'Password1!');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Authorize'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
       await tester.pump();
+
       await tester.tap(_iconInTile('GitHub', Icons.copy));
+      await tester.pumpAndSettle();
+      // Enter password for second copy
+      await tester.enterText(
+          find.byWidgetPredicate(
+              (w) => w is TextField && w.decoration?.hintText == 'Password'),
+          'Password1!');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Authorize'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
       await tester.pump();
@@ -2467,6 +2553,14 @@ void main() {
       );
 
       await tester.tap(_iconInTile('GitHub', Icons.copy));
+      await tester.pumpAndSettle();
+
+      // Enter password in authorization dialog
+      await tester.enterText(
+          find.byWidgetPredicate(
+              (w) => w is TextField && w.decoration?.hintText == 'Password'),
+          'Password1!');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Authorize'));
       await tester.pump();
 
       expect(clipboardCalls.first.arguments['text'], isNot(''));
@@ -2489,6 +2583,14 @@ void main() {
       );
 
       await tester.tap(_iconInTile('GitHub', Icons.copy));
+      await tester.pumpAndSettle();
+
+      // Enter password in authorization dialog
+      await tester.enterText(
+          find.byWidgetPredicate(
+              (w) => w is TextField && w.decoration?.hintText == 'Password'),
+          'Password1!');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Authorize'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
       await tester.pump();
@@ -2513,6 +2615,13 @@ void main() {
       );
 
       await tester.tap(_iconInTile('GitHub', Icons.copy));
+      await tester.pumpAndSettle();
+      // Enter password in authorization dialog
+      await tester.enterText(
+          find.byWidgetPredicate(
+              (w) => w is TextField && w.decoration?.hintText == 'Password'),
+          'Password1!');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Authorize'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
       await tester.pump();
@@ -2541,6 +2650,13 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.tap(_iconInTile('Email', Icons.copy));
+      await tester.pumpAndSettle();
+      // Enter password in authorization dialog
+      await tester.enterText(
+          find.byWidgetPredicate(
+              (w) => w is TextField && w.decoration?.hintText == 'Password'),
+          'Password1!');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Authorize'));
       await tester.pump();
 
       expect(clipboardCalls.first.arguments['text'], 'NewPass2!');
@@ -2559,16 +2675,30 @@ void main() {
             'updatedAt': '2024-01-01 10:00',
           },
         },
-        clipboardDelay: const Duration(milliseconds: 80),
+        clipboardDelay: const Duration(milliseconds: 500),
       );
 
       await tester.tap(_iconInTile('GitHub', Icons.copy));
+      await tester.pumpAndSettle();
+      // Enter password in first authorization dialog
+      await tester.enterText(
+          find.byWidgetPredicate(
+              (w) => w is TextField && w.decoration?.hintText == 'Password'),
+          'Password1!');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Authorize'));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 40));
+      await tester.pump(const Duration(milliseconds: 300));
+
       await tester.tap(_iconInTile('GitHub', Icons.copy));
+      await tester.pumpAndSettle();
+      // Enter password in second authorization dialog
+      await tester.enterText(
+          find.byWidgetPredicate(
+              (w) => w is TextField && w.decoration?.hintText == 'Password'),
+          'Password1!');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Authorize'));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 80));
-      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
 
       expect(
         clipboardCalls.where((call) => call.arguments['text'] == '').length,
@@ -2592,6 +2722,13 @@ void main() {
       );
 
       await tester.tap(_iconInTile('GitHub', Icons.copy));
+      await tester.pumpAndSettle();
+      // Enter password in authorization dialog
+      await tester.enterText(
+          find.byWidgetPredicate(
+              (w) => w is TextField && w.decoration?.hintText == 'Password'),
+          'Password1!');
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Authorize'));
       await tester.pump();
 
       expect(find.text('Copied to clipboard'), findsOneWidget);
