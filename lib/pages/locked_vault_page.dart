@@ -19,6 +19,7 @@ class LockedVaultPage extends StatefulWidget {
   final String token;
   final String password;
   final Function(String) onUnlock; // Callback with password as parameter
+  final VoidCallback onLogout; // Callback for logout action
 
   const LockedVaultPage({
     super.key,
@@ -26,6 +27,7 @@ class LockedVaultPage extends StatefulWidget {
     required this.token,
     required this.password,
     required this.onUnlock,
+    required this.onLogout,
   });
 
   @override
@@ -159,6 +161,30 @@ class _LockedVaultPageState extends State<LockedVaultPage> {
     _passwordController.clear();
   }
 
+  /// Logout and return to login screen
+  Future<void> _logout() async {
+    debugPrint('[LockedVaultPage] User initiated logout');
+    setState(() {
+      _loading = true;
+    });
+    try {
+      // Call logout API to invalidate token on server
+      await _authService.logout(widget.token);
+      _logService.clearLogs();
+
+      if (!mounted) return;
+
+      // Call parent logout callback
+      widget.onLogout();
+    } catch (e) {
+      debugPrint('[LockedVaultPage] Logout error: $e');
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -241,6 +267,18 @@ class _LockedVaultPageState extends State<LockedVaultPage> {
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                     ),
+                  ),
+                ),
+                SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.02,
+                ),
+                // Logout button
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.logout),
+                    label: const Text('Logout'),
+                    onPressed: _loading ? null : _logout,
                   ),
                 ),
               ] else
@@ -333,6 +371,18 @@ class _LockedVaultPageState extends State<LockedVaultPage> {
                     icon: const Icon(Icons.arrow_back),
                     label: const Text('Back to Password'),
                     onPressed: _loading ? null : _cancelMfa,
+                  ),
+                ),
+                SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.02,
+                ),
+                // Logout button
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.logout),
+                    label: const Text('Logout'),
+                    onPressed: _loading ? null : _logout,
                   ),
                 ),
               ],

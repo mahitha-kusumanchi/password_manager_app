@@ -1752,6 +1752,14 @@ class _VaultPageState extends State<VaultPage> with WidgetsBindingObserver {
         token: widget.token,
         password: widget.password,
         onUnlock: _unlockVault,
+        onLogout: () {
+          // Logout and return to login screen
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const StartPage()),
+            (_) => false,
+          );
+        },
       );
     }
 
