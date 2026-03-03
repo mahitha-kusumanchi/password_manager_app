@@ -337,6 +337,56 @@ class AuthService {
     }
   }
 
+  Future<Uint8List> downloadBackup(String token, String filename) async {
+    final encodedFilename = Uri.encodeComponent(filename);
+    final response = await client.get(
+      Uri.parse('$baseUrl/backups/$encodedFilename/download'),
+      headers: {'Authorization': token},
+    );
+
+    if (response.statusCode == 404) {
+      final vaultResponse = await client.get(
+        Uri.parse('$baseUrl/vault'),
+        headers: {'Authorization': token},
+      );
+
+      if (vaultResponse.statusCode != 200) {
+        throw Exception(
+            'Failed to download backup and fallback vault export failed');
+      }
+
+      final vaultData = json.decode(vaultResponse.body);
+      final blob = vaultData['blob'];
+      if (blob == null) {
+        throw Exception('No encrypted vault data available to export');
+      }
+
+      final payload = jsonEncode({
+        'format': 'encrypted_vault_blob',
+        'exported_at': DateTime.now().toUtc().toIso8601String(),
+        'blob': blob,
+      });
+      return Uint8List.fromList(utf8.encode(payload));
+    }
+
+    if (response.statusCode != 200) {
+      String detail = 'Failed to download backup (${response.statusCode})';
+      try {
+        final body = json.decode(response.body);
+        if (body is Map && body['detail'] != null) {
+          detail = body['detail'].toString();
+        }
+      } catch (_) {
+        if (response.body.isNotEmpty) {
+          detail = response.body;
+        }
+      }
+      throw Exception(detail);
+    }
+
+    return response.bodyBytes;
+  }
+
   /// Fetch audit logs for the authenticated user from the server.
   /// Returns a list of log entries; each entry has action, details, and timestamp.
   /// Logs are filtered server-side so only the current user's logs are returned.
