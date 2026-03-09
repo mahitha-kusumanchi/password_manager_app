@@ -19,7 +19,7 @@ dependencies:
   ffi: ^2.1.0
   
   # File picker for native file dialogs
-  file_picker: ^6.1.0
+  file_picker: ^10.3.10
   
   # UI
   cupertino_icons: ^1.0.6
