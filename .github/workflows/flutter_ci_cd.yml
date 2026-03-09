@@ -1,0 +1,57 @@
+name: Flutter CI/CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'password_manager_app/**'
+      - '.github/workflows/flutter_ci_cd.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'password_manager_app/**'
+
+jobs:
+  build_and_test:
+    name: Build & Test Flutter App
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./password_manager_app
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Analyze Project
+        run: flutter analyze
+
+      - name: Run Tests
+        run: flutter test
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: password_manager_app/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
