@@ -35,6 +35,9 @@ dependencies:
   provider: ^6.1.1
   shared_preferences: ^2.2.2
 
+  # Open link
+  url_launcher: ^6.2.5
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
