@@ -1,5 +1,6 @@
 # Password Manager App
 
+
 A cross-platform Flutter application that implements a secure password manager client with Argon2 password hashing.
 
 ## Features
